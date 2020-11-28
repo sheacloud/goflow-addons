@@ -3,16 +3,19 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
 	"sync"
 
-	"github.com/Jon-Shea/goflow-addons/transport"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/cloudflare/goflow/v3/utils"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sheacloud/goflow-addons/enrichers"
+	"github.com/sheacloud/goflow-addons/transport"
+	addonutils "github.com/sheacloud/goflow-addons/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -83,7 +86,6 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	log.Info("Starting GoFlow")
-	log.Info("hello")
 
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
@@ -99,20 +101,34 @@ func main() {
 
 	cloudwatchState.Initialize()
 
-	onetomanyState := transport.OneToManyState{
-		Transports: []utils.Transport{&cloudwatchState},
+	geoIPEnricher := enrichers.GeoIPEnricher{
+		Language: "en",
+	}
+	geoIPEnricher.Initialize()
+
+	_, localNetwork, _ := net.ParseCIDR("192.168.0.0/16")
+	flowDirectionEnricher := enrichers.FlowDirectionEnricher{
+		LocalNetworks: []net.IPNet{*localNetwork},
+	}
+
+	domainLookupEnricher := enrichers.DomainLookupEnricher{}
+	domainLookupEnricher.Initialize()
+
+	extendedState := transport.ExtendedWrapperState{
+		ExtendedTransports: []addonutils.ExtendedTransport{&cloudwatchState},
+		Enrichers:          []addonutils.Enricher{&geoIPEnricher, &flowDirectionEnricher, &domainLookupEnricher},
 	}
 
 	sSFlow := &utils.StateSFlow{
-		Transport: onetomanyState,
+		Transport: extendedState,
 		Logger:    log.StandardLogger(),
 	}
 	sNF := &utils.StateNetFlow{
-		Transport: onetomanyState,
+		Transport: extendedState,
 		Logger:    log.StandardLogger(),
 	}
 	sNFL := &utils.StateNFLegacy{
-		Transport: onetomanyState,
+		Transport: extendedState,
 		Logger:    log.StandardLogger(),
 	}
 

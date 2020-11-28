@@ -3,15 +3,15 @@ package transport
 import (
 	"fmt"
 
-	flowmessage "github.com/cloudflare/goflow/v3/pb"
+	"github.com/sheacloud/goflow-addons/utils"
 )
 
 type SysoutState struct {
 }
 
-func (s SysoutState) Publish(msgs []*flowmessage.FlowMessage) {
+func (s SysoutState) Publish(msgs []*utils.ExtendedFlowMessage) {
 	for _, msg := range msgs {
-		str, _ := HumanReadableJSONMarshalIndent(msg, "", "  ")
+		str, _ := utils.HumanReadableJSONMarshalIndent(msg, "", "  ")
 		fmt.Println(string(str))
 	}
 }
