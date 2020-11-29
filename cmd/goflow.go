@@ -3,17 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"runtime"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/cloudflare/goflow/v3/utils"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/sheacloud/goflow-addons/enrichers"
 	"github.com/sheacloud/goflow-addons/transport"
 	addonutils "github.com/sheacloud/goflow-addons/utils"
 	log "github.com/sirupsen/logrus"
@@ -36,7 +32,7 @@ var (
 
 	NFEnable = flag.Bool("nf", true, "Enable NetFlow/IPFIX")
 	NFAddr   = flag.String("nf.addr", "", "NetFlow/IPFIX listening address")
-	NFPort   = flag.Int("nf.port", 2055, "NetFlow/IPFIX listening port")
+	NFPort   = flag.Int("nf.port", 9001, "NetFlow/IPFIX listening port")
 	NFReuse  = flag.Bool("nf.reuserport", false, "Enable so_reuseport for NetFlow/IPFIX")
 
 	Workers  = flag.Int("workers", 1, "Number of workers per collector")
@@ -87,36 +83,39 @@ func main() {
 
 	log.Info("Starting GoFlow")
 
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	}))
-
-	cloudwatchLogsSvc := cloudwatchlogs.New(sess)
+	// sess := session.Must(session.NewSessionWithOptions(session.Options{
+	// 	SharedConfigState: session.SharedConfigEnable,
+	// }))
+	//
+	// cloudwatchLogsSvc := cloudwatchlogs.New(sess)
 
 	// sysoutState := transport.SysoutState{}
-	cloudwatchState := transport.CloudwatchState{
-		LogGroupName:      "/goflow/",
-		CloudwatchLogsSvc: cloudwatchLogsSvc,
-	}
+	// cloudwatchState := transport.CloudwatchState{
+	// 	LogGroupName:      "/goflow/",
+	// 	CloudwatchLogsSvc: cloudwatchLogsSvc,
+	// }
+	//
+	// cloudwatchState.Initialize()
 
-	cloudwatchState.Initialize()
+	nullState := transport.NullState{}
 
-	geoIPEnricher := enrichers.GeoIPEnricher{
-		Language: "en",
-	}
-	geoIPEnricher.Initialize()
-
-	_, localNetwork, _ := net.ParseCIDR("192.168.0.0/16")
-	flowDirectionEnricher := enrichers.FlowDirectionEnricher{
-		LocalNetworks: []net.IPNet{*localNetwork},
-	}
-
-	domainLookupEnricher := enrichers.DomainLookupEnricher{}
-	domainLookupEnricher.Initialize()
+	// geoIPEnricher := enrichers.GeoIPEnricher{
+	// 	Language: "en",
+	// }
+	// geoIPEnricher.Initialize()
+	//
+	// _, localNetwork, _ := net.ParseCIDR("192.168.0.0/16")
+	// flowDirectionEnricher := enrichers.FlowDirectionEnricher{
+	// 	LocalNetworks: []net.IPNet{*localNetwork},
+	// }
+	//
+	// domainLookupEnricher := enrichers.DomainLookupEnricher{}
+	// domainLookupEnricher.Initialize()
 
 	extendedState := transport.ExtendedWrapperState{
-		ExtendedTransports: []addonutils.ExtendedTransport{&cloudwatchState},
-		Enrichers:          []addonutils.Enricher{&geoIPEnricher, &flowDirectionEnricher, &domainLookupEnricher},
+		ExtendedTransports: []addonutils.ExtendedTransport{&nullState},
+		// ExtendedTransports: []addonutils.ExtendedTransport{&cloudwatchState},
+		// Enrichers:          []addonutils.Enricher{&geoIPEnricher, &flowDirectionEnricher, &domainLookupEnricher},
 	}
 
 	sSFlow := &utils.StateSFlow{

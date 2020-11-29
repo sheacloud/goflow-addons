@@ -66,14 +66,14 @@ func (l *LogStream) addEventToBuffer(message []byte, timestamp int64) {
 	l.bufferedEvents = append(l.bufferedEvents, event)
 	l.bufferedEventsBytes += len(message) + 26
 
-	fmt.Printf("Added %v byte event to buffer, size is now %v bytes\n", len(message)+26, l.bufferedEventsBytes)
+	// fmt.Printf("Added %v byte event to buffer, size is now %v bytes\n", len(message)+26, l.bufferedEventsBytes)
 
 	var uploadEvents bool
 
 	// TODO figure out better buffer size cutoff to correspond to AWS limit of 1,048,576 bytes
-	if l.bufferedEventsBytes >= 100000 {
+	if l.bufferedEventsBytes >= 500000 {
 		uploadEvents = true
-		fmt.Println("Uploading events as 25KB buffer has been reached")
+		fmt.Println("Uploading events as 100KB buffer has been reached")
 	} else if time.Now().Sub(l.lastUploadTime).Seconds() >= 10 {
 		uploadEvents = true
 		fmt.Println("Uploading events as time limit has been reached")
@@ -112,6 +112,7 @@ func (l *LogStream) UploadBufferedEvents() {
 	}
 
 	l.LastSequenceToken = resp.NextSequenceToken
+	fmt.Println(resp.RejectedLogEventsInfo)
 	l.lastUploadTime = time.Now()
 	l.uploadLock.Unlock()
 }
