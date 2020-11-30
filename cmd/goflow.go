@@ -36,7 +36,7 @@ var (
 
 	NFEnable = flag.Bool("nf", true, "Enable NetFlow/IPFIX")
 	NFAddr   = flag.String("nf.addr", "", "NetFlow/IPFIX listening address")
-	NFPort   = flag.Int("nf.port", 2055, "NetFlow/IPFIX listening port")
+	NFPort   = flag.Int("nf.port", 9001, "NetFlow/IPFIX listening port")
 	NFReuse  = flag.Bool("nf.reuserport", false, "Enable so_reuseport for NetFlow/IPFIX")
 
 	Workers  = flag.Int("workers", 1, "Number of workers per collector")
@@ -101,6 +101,8 @@ func main() {
 
 	cloudwatchState.Initialize()
 
+	// nullState := transport.NullState{}
+
 	geoIPEnricher := enrichers.GeoIPEnricher{
 		Language: "en",
 	}
@@ -111,26 +113,26 @@ func main() {
 		LocalNetworks: []net.IPNet{*localNetwork},
 	}
 
-	domainLookupEnricher := enrichers.DomainLookupEnricher{}
-	domainLookupEnricher.Initialize()
+	// domainLookupEnricher := enrichers.DomainLookupEnricher{}
+	// domainLookupEnricher.Initialize()
 
 	extendedState := transport.ExtendedWrapperState{
 		ExtendedTransports: []addonutils.ExtendedTransport{&cloudwatchState},
-		Enrichers:          []addonutils.Enricher{&geoIPEnricher, &flowDirectionEnricher, &domainLookupEnricher},
+		Enrichers:          []addonutils.Enricher{&geoIPEnricher, &flowDirectionEnricher},
 	}
 
-	sSFlow := &utils.StateSFlow{
-		Transport: extendedState,
-		Logger:    log.StandardLogger(),
-	}
+	// sSFlow := &utils.StateSFlow{
+	// 	Transport: extendedState,
+	// 	Logger:    log.StandardLogger(),
+	// }
 	sNF := &utils.StateNetFlow{
 		Transport: extendedState,
 		Logger:    log.StandardLogger(),
 	}
-	sNFL := &utils.StateNFLegacy{
-		Transport: extendedState,
-		Logger:    log.StandardLogger(),
-	}
+	// sNFL := &utils.StateNFLegacy{
+	// 	Transport: extendedState,
+	// 	Logger:    log.StandardLogger(),
+	// }
 
 	go httpServer(sNF)
 
@@ -147,20 +149,20 @@ func main() {
 	// }
 
 	wg := &sync.WaitGroup{}
-	if *SFlowEnable {
-		wg.Add(1)
-		go func() {
-			log.WithFields(log.Fields{
-				"Type": "sFlow"}).
-				Infof("Listening on UDP %v:%v", *SFlowAddr, *SFlowPort)
-
-			err := sSFlow.FlowRoutine(*Workers, *SFlowAddr, *SFlowPort, *SFlowReuse)
-			if err != nil {
-				log.Fatalf("Fatal error: could not listen to UDP (%v)", err)
-			}
-			wg.Done()
-		}()
-	}
+	// if *SFlowEnable {
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		log.WithFields(log.Fields{
+	// 			"Type": "sFlow"}).
+	// 			Infof("Listening on UDP %v:%v", *SFlowAddr, *SFlowPort)
+	//
+	// 		err := sSFlow.FlowRoutine(*Workers, *SFlowAddr, *SFlowPort, *SFlowReuse)
+	// 		if err != nil {
+	// 			log.Fatalf("Fatal error: could not listen to UDP (%v)", err)
+	// 		}
+	// 		wg.Done()
+	// 	}()
+	// }
 	if *NFEnable {
 		wg.Add(1)
 		go func() {
@@ -175,19 +177,19 @@ func main() {
 			wg.Done()
 		}()
 	}
-	if *NFLEnable {
-		wg.Add(1)
-		go func() {
-			log.WithFields(log.Fields{
-				"Type": "NetFlowLegacy"}).
-				Infof("Listening on UDP %v:%v", *NFLAddr, *NFLPort)
-
-			err := sNFL.FlowRoutine(*Workers, *NFLAddr, *NFLPort, *NFLReuse)
-			if err != nil {
-				log.Fatalf("Fatal error: could not listen to UDP (%v)", err)
-			}
-			wg.Done()
-		}()
-	}
+	// if *NFLEnable {
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		log.WithFields(log.Fields{
+	// 			"Type": "NetFlowLegacy"}).
+	// 			Infof("Listening on UDP %v:%v", *NFLAddr, *NFLPort)
+	//
+	// 		err := sNFL.FlowRoutine(*Workers, *NFLAddr, *NFLPort, *NFLReuse)
+	// 		if err != nil {
+	// 			log.Fatalf("Fatal error: could not listen to UDP (%v)", err)
+	// 		}
+	// 		wg.Done()
+	// 	}()
+	// }
 	wg.Wait()
 }
