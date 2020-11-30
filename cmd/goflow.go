@@ -3,13 +3,17 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
 	"sync"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/cloudflare/goflow/v3/utils"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sheacloud/goflow-addons/enrichers"
 	"github.com/sheacloud/goflow-addons/transport"
 	addonutils "github.com/sheacloud/goflow-addons/utils"
 	log "github.com/sirupsen/logrus"
@@ -83,53 +87,52 @@ func main() {
 
 	log.Info("Starting GoFlow")
 
-	// sess := session.Must(session.NewSessionWithOptions(session.Options{
-	// 	SharedConfigState: session.SharedConfigEnable,
-	// }))
-	//
-	// cloudwatchLogsSvc := cloudwatchlogs.New(sess)
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	cloudwatchLogsSvc := cloudwatchlogs.New(sess)
 
 	// sysoutState := transport.SysoutState{}
-	// cloudwatchState := transport.CloudwatchState{
-	// 	LogGroupName:      "/goflow/",
-	// 	CloudwatchLogsSvc: cloudwatchLogsSvc,
-	// }
-	//
-	// cloudwatchState.Initialize()
+	cloudwatchState := transport.CloudwatchState{
+		LogGroupName:      "/goflow/",
+		CloudwatchLogsSvc: cloudwatchLogsSvc,
+	}
 
-	nullState := transport.NullState{}
+	cloudwatchState.Initialize()
 
-	// geoIPEnricher := enrichers.GeoIPEnricher{
-	// 	Language: "en",
-	// }
-	// geoIPEnricher.Initialize()
-	//
-	// _, localNetwork, _ := net.ParseCIDR("192.168.0.0/16")
-	// flowDirectionEnricher := enrichers.FlowDirectionEnricher{
-	// 	LocalNetworks: []net.IPNet{*localNetwork},
-	// }
-	//
+	// nullState := transport.NullState{}
+
+	geoIPEnricher := enrichers.GeoIPEnricher{
+		Language: "en",
+	}
+	geoIPEnricher.Initialize()
+
+	_, localNetwork, _ := net.ParseCIDR("192.168.0.0/16")
+	flowDirectionEnricher := enrichers.FlowDirectionEnricher{
+		LocalNetworks: []net.IPNet{*localNetwork},
+	}
+
 	// domainLookupEnricher := enrichers.DomainLookupEnricher{}
 	// domainLookupEnricher.Initialize()
 
 	extendedState := transport.ExtendedWrapperState{
-		ExtendedTransports: []addonutils.ExtendedTransport{&nullState},
-		// ExtendedTransports: []addonutils.ExtendedTransport{&cloudwatchState},
-		// Enrichers:          []addonutils.Enricher{&geoIPEnricher, &flowDirectionEnricher, &domainLookupEnricher},
+		ExtendedTransports: []addonutils.ExtendedTransport{&cloudwatchState},
+		Enrichers:          []addonutils.Enricher{&geoIPEnricher, &flowDirectionEnricher},
 	}
 
-	sSFlow := &utils.StateSFlow{
-		Transport: extendedState,
-		Logger:    log.StandardLogger(),
-	}
+	// sSFlow := &utils.StateSFlow{
+	// 	Transport: extendedState,
+	// 	Logger:    log.StandardLogger(),
+	// }
 	sNF := &utils.StateNetFlow{
 		Transport: extendedState,
 		Logger:    log.StandardLogger(),
 	}
-	sNFL := &utils.StateNFLegacy{
-		Transport: extendedState,
-		Logger:    log.StandardLogger(),
-	}
+	// sNFL := &utils.StateNFLegacy{
+	// 	Transport: extendedState,
+	// 	Logger:    log.StandardLogger(),
+	// }
 
 	go httpServer(sNF)
 
@@ -146,20 +149,20 @@ func main() {
 	// }
 
 	wg := &sync.WaitGroup{}
-	if *SFlowEnable {
-		wg.Add(1)
-		go func() {
-			log.WithFields(log.Fields{
-				"Type": "sFlow"}).
-				Infof("Listening on UDP %v:%v", *SFlowAddr, *SFlowPort)
-
-			err := sSFlow.FlowRoutine(*Workers, *SFlowAddr, *SFlowPort, *SFlowReuse)
-			if err != nil {
-				log.Fatalf("Fatal error: could not listen to UDP (%v)", err)
-			}
-			wg.Done()
-		}()
-	}
+	// if *SFlowEnable {
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		log.WithFields(log.Fields{
+	// 			"Type": "sFlow"}).
+	// 			Infof("Listening on UDP %v:%v", *SFlowAddr, *SFlowPort)
+	//
+	// 		err := sSFlow.FlowRoutine(*Workers, *SFlowAddr, *SFlowPort, *SFlowReuse)
+	// 		if err != nil {
+	// 			log.Fatalf("Fatal error: could not listen to UDP (%v)", err)
+	// 		}
+	// 		wg.Done()
+	// 	}()
+	// }
 	if *NFEnable {
 		wg.Add(1)
 		go func() {
@@ -174,19 +177,19 @@ func main() {
 			wg.Done()
 		}()
 	}
-	if *NFLEnable {
-		wg.Add(1)
-		go func() {
-			log.WithFields(log.Fields{
-				"Type": "NetFlowLegacy"}).
-				Infof("Listening on UDP %v:%v", *NFLAddr, *NFLPort)
-
-			err := sNFL.FlowRoutine(*Workers, *NFLAddr, *NFLPort, *NFLReuse)
-			if err != nil {
-				log.Fatalf("Fatal error: could not listen to UDP (%v)", err)
-			}
-			wg.Done()
-		}()
-	}
+	// if *NFLEnable {
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		log.WithFields(log.Fields{
+	// 			"Type": "NetFlowLegacy"}).
+	// 			Infof("Listening on UDP %v:%v", *NFLAddr, *NFLPort)
+	//
+	// 		err := sNFL.FlowRoutine(*Workers, *NFLAddr, *NFLPort, *NFLReuse)
+	// 		if err != nil {
+	// 			log.Fatalf("Fatal error: could not listen to UDP (%v)", err)
+	// 		}
+	// 		wg.Done()
+	// 	}()
+	// }
 	wg.Wait()
 }

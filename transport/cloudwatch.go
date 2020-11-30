@@ -2,6 +2,7 @@ package transport
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -53,7 +54,7 @@ type LogStream struct {
 func (l *LogStream) IngestEvents(msgs []*utils.ExtendedFlowMessage) {
 	for _, msg := range msgs {
 		data, _ := utils.HumanReadableJSONMarshal(msg)
-		l.addEventToBuffer(data, int64(msg.TimeReceived)*1000)
+		l.addEventToBuffer(data, int64(msg.TimeFlowStart)*1000)
 	}
 }
 
@@ -63,10 +64,14 @@ func (l *LogStream) addEventToBuffer(message []byte, timestamp int64) {
 		Timestamp: aws.Int64(timestamp),
 	}
 	l.bufferedEventLock.Lock()
-	l.bufferedEvents = append(l.bufferedEvents, event)
-	l.bufferedEventsBytes += len(message) + 26
 
-	// fmt.Printf("Added %v byte event to buffer, size is now %v bytes\n", len(message)+26, l.bufferedEventsBytes)
+	// insert the event into the buffer in a sorted order
+	index := sort.Search(len(l.bufferedEvents), func(i int) bool { return *l.bufferedEvents[i].Timestamp >= timestamp }) // get the index where the event should be placed
+	l.bufferedEvents = append(l.bufferedEvents, nil)                                                                     // extend the buffer by 1
+	copy(l.bufferedEvents[index+1:], l.bufferedEvents[index:])                                                           //shift the data in the buffer back 1
+	l.bufferedEvents[index] = event                                                                                      // insert the event into the list
+
+	l.bufferedEventsBytes += len(message) + 26
 
 	var uploadEvents bool
 
